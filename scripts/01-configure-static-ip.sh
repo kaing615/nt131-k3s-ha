@@ -109,61 +109,6 @@ backup_file() {
   fi
 }
 
-configure_networkmanager() {
-  local con_name
-  con_name="$(nmcli -g GENERAL.CONNECTION device show "$NODE_INTERFACE" 2>/dev/null | head -n 1 || true)"
-
-  if [[ -z "$con_name" || "$con_name" == "--" ]]; then
-    con_name="nt131-${NODE_INTERFACE}"
-    run nmcli connection add type ethernet ifname "$NODE_INTERFACE" con-name "$con_name"
-  fi
-
-  log "Configuring NetworkManager connection '$con_name'"
-  run nmcli connection modify "$con_name" \
-    ipv4.method manual \
-    ipv4.addresses "${NODE_IP}/${NODE_PREFIX}" \
-    ipv4.gateway "$NODE_GATEWAY" \
-    ipv4.dns "$NODE_DNS_SERVERS" \
-    ipv6.method ignore \
-    connection.autoconnect yes
-  run nmcli connection up "$con_name"
-}
-
-configure_dhcpcd() {
-  local conf="/etc/dhcpcd.conf"
-  local tmp
-  tmp="$(mktemp)"
-
-  log "Configuring dhcpcd in $conf"
-  backup_file "$conf"
-
-  if [[ -f "$conf" ]]; then
-    awk '
-      /^# BEGIN nt131-static$/ { skip=1; next }
-      /^# END nt131-static$/ { skip=0; next }
-      !skip { print }
-    ' "$conf" > "$tmp"
-  fi
-
-  cat >> "$tmp" <<EOF
-# BEGIN nt131-static
-interface ${NODE_INTERFACE}
-static ip_address=${NODE_IP}/${NODE_PREFIX}
-static routers=${NODE_GATEWAY}
-static domain_name_servers=${NODE_DNS_SERVERS}
-# END nt131-static
-EOF
-
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    sed -n '/# BEGIN nt131-static/,$p' "$tmp"
-    rm -f "$tmp"
-  else
-    install -m 0644 "$tmp" "$conf"
-    rm -f "$tmp"
-    systemctl restart dhcpcd
-  fi
-}
-
 configure_netplan() {
   local conf="/etc/netplan/99-nt131-static.yaml"
 
@@ -204,52 +149,13 @@ EOF
   fi
 }
 
-configure_systemd_networkd() {
-  local conf="/etc/systemd/network/10-nt131-${NODE_INTERFACE}.network"
-
-  log "Configuring systemd-networkd in $conf"
-  backup_file "$conf"
-
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    cat <<EOF
-[Match]
-Name=${NODE_INTERFACE}
-
-[Network]
-Address=${NODE_IP}/${NODE_PREFIX}
-Gateway=${NODE_GATEWAY}
-DNS=${NODE_DNS_SERVERS}
-EOF
-  else
-    cat > "$conf" <<EOF
-[Match]
-Name=${NODE_INTERFACE}
-
-[Network]
-Address=${NODE_IP}/${NODE_PREFIX}
-Gateway=${NODE_GATEWAY}
-DNS=${NODE_DNS_SERVERS}
-EOF
-    systemctl enable --now systemd-networkd
-    systemctl restart systemd-networkd
-  fi
-}
-
 log "Host: $NODE_HOST"
 log "Interface: $NODE_INTERFACE"
 log "Static IP: ${NODE_IP}/${NODE_PREFIX}"
 log "Gateway: $NODE_GATEWAY"
 log "DNS: $NODE_DNS_SERVERS"
 
-if command -v nmcli >/dev/null 2>&1; then
-  configure_networkmanager
-elif systemctl list-unit-files dhcpcd.service >/dev/null 2>&1; then
-  configure_dhcpcd
-elif command -v netplan >/dev/null 2>&1; then
-  configure_netplan
-else
-  configure_systemd_networkd
-fi
+configure_netplan
 
 log "Resulting IPv4 address on $NODE_INTERFACE"
 run ip -4 addr show dev "$NODE_INTERFACE"
