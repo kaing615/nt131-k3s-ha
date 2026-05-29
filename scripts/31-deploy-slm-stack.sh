@@ -4,6 +4,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
+: "${SLM_IMAGE:=ghcr.io/ggml-org/llama.cpp:server}"
+
 require_cmd kubectl
 export KUBECONFIG="${KUBECONFIG:-$KUBECONFIG_LOCAL}"
 
@@ -77,19 +79,22 @@ spec:
       - name: ${APP_NAME}
         image: ${SLM_IMAGE}
         imagePullPolicy: IfNotPresent
-        command:
-        - /bin/sh
-        - -c
-        - |
-          exec llama-server \
-            -m /models/${HF_MODEL_FILE} \
-            --host 0.0.0.0 \
-            --port ${SLM_PORT} \
-            -c ${LLM_CONTEXT_SIZE} \
-            -n ${LLM_MAX_TOKENS} \
-            -np ${LLM_PARALLEL} \
-            -t ${LLM_THREADS} \
-            --metrics
+        args:
+        - "-m"
+        - "/models/${HF_MODEL_FILE}"
+        - "--host"
+        - "0.0.0.0"
+        - "--port"
+        - "${SLM_PORT}"
+        - "-c"
+        - "${LLM_CONTEXT_SIZE}"
+        - "-n"
+        - "${LLM_MAX_TOKENS}"
+        - "-np"
+        - "${LLM_PARALLEL}"
+        - "-t"
+        - "${LLM_THREADS}"
+        - "--metrics"
         ports:
         - containerPort: ${SLM_PORT}
         volumeMounts:

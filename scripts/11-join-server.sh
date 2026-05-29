@@ -27,3 +27,4 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" sh -s - server
 
 log "Server joined successfully"
 
+

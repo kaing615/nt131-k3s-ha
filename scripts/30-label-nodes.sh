@@ -11,7 +11,7 @@ log "Labeling nodes"
 kubectl label node "$MASTER1_HOST" node-role.nt131/control-plane=true --overwrite
 kubectl label node "$MASTER2_HOST" node-role.nt131/control-plane=true --overwrite
 kubectl label node "$MASTER3_HOST" node-role.nt131/control-plane=true --overwrite
-kubectl label node "$WORKER1_HOST" workload=app node-role.nt131/worker=true --overwrite
-kubectl label node "$WORKER2_HOST" workload=app node-role.nt131/worker=true --overwrite
+kubectl label node "$WORKER1_HOST" workload=app node-role.kubernetes.io/worker=worker --overwrite
+kubectl label node "$WORKER2_HOST" workload=app node-role.kubernetes.io/worker=worker --overwrite
 
 log "Node labels updated"
